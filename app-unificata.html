@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestione Fornitori & DDT Reader</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --surface: #16181f;
+    --surface2: #1e2028;
+    --border: #2a2d38;
+    --accent: #e8ff47;
+    --accent2: #47b8ff;
+    --accent3: #ff6b47;
+    --text: #f0f2f8;
+    --muted: #6b7080;
+    --success: #47ffb0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  header {
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .logo-badge { width: 44px; height: 44px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+
+  h1 { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  h1 small { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }
+
+  .tabs {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  .tab-btn {
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .tab-btn.active { background: var(--accent); color: #0e0f13; border-color: var(--accent); }
+  .tab-btn:hover { border-color: var(--text); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-top: 24px;
+  }
+
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .dot.green { background: var(--success); box-shadow: 0 0 8px var(--success); }
+  .dot.yellow { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .dot.blue { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+  
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+  }
+
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .btn-primary { background: var(--accent); color: #0e0f13; }
+  .btn-primary:hover { background: #d4eb2e; }
+
+  .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-secondary:hover { border-color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th { padding: 12px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); background: var(--surface2); border-bottom: 1px solid var(--border); font-weight: 600; }
+  tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .25s;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(232,255,71,.04); }
+  .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-zone h3 { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin: 10px 0; }
+  .drop-zone p { font-size: 12px; color: var(--muted); }
+
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s;
+    z-index: 1000;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--success); }
+  .toast.error { border-color: var(--accent3); }
+
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--muted); }
+  .empty-state .emoji { font-size: 36px; display: block; margin-bottom: 12px; }
+  .empty-state p { font-size: 13px; line-height: 1.6; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+  .stat-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .stat-val { font-family: 'DM Mono', monospace; font-size: 24px; font-weight: 700; color: var(--accent); }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; }
+
+  .badge { background: var(--accent); color: #0e0f13; font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 20px; font-family: 'DM Mono', monospace; }
+  .badge.blue { background: var(--accent2); }
+
+  @media (max-width: 768px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr; }
+    .tabs { flex-direction: column; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="logo-badge">📦</div>
+    <div>
+      <h1>GESTIONE FORNITORI<br><small>Listino + DDT Reader unificato</small></h1>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('listino')">📋 Listino</button>
+      <button class="tab-btn" onclick="switchTab('ddt')">🗂️ DDT Reader</button>
+    </div>
+  </header>
+
+  <!-- TAB 1: LISTINO -->
+  <div id="listino" class="tab-content active">
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-val" id="stat-fornitori">0</div>
+        <div class="stat-lbl">Fornitori</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-prodotti">0</div>
+        <div class="stat-lbl">Prodotti</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-ddt">0</div>
+        <div class="stat-lbl">DDT Caricati</div>
+      </div>
+    </div>
+
+    <!-- Aggiungi Fornitore -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot yellow"></div>
+        <span>Nuovo Fornitore</span>
+      </div>
+      <div style="padding: 20px;">
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nome Fornitore</label>
+            <input type="text" id="form-nome" placeholder="es. IGEA CARNI">
+          </div>
+          <div class="form-group">
+            <label>Partita IVA</label>
+            <input type="text" id="form-piva" placeholder="IT...">
+          </div>
+          <div class="form-group">
+            <label>Telefono</label>
+            <input type="text" id="form-tel" placeholder="0541...">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="form-email" placeholder="info@...">
+          </div>
+          <div class="form-group">
+            <label>Agente</label>
+            <input type="text" id="form-agente" placeholder="Nome agente">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addFornitore()">➕ Aggiungi Fornitore</button>
+      </div>
+    </div>
+
+    <!-- Fornitori & Prodotti -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot green"></div>
+        <span>Fornitori e Prodotti</span>
+      </div>
+      <div style="padding: 20px;" id="listino-container">
+        <div class="empty-state">
+          <span class="emoji">📋</span>
+          <p>Nessun fornitore aggiunto.<br>Crea il tuo primo fornitore sopra.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: DDT READER -->
+  <div id="ddt" class="tab-content">
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="dot yellow"></div>
+          <span>Carica DDT</span>
+        </div>
+        <div style="padding: 20px;">
+          <div class="form-group">
+            <label>Fornitore</label>
+            <select id="ddt-fornitore" style="margin-bottom: 20px;">
+              <option value="">— Rileva automaticamente —</option>
+            </select>
+          </div>
+
+          <div class="drop-zone" id="drop-zone">
+            <input type="file" id="file-input" accept="image/*,.pdf">
+            <span style="font-size: 40px; display: block; margin-bottom: 12px;">🗂️</span>
+            <h3>Trascina qui la bolla</h3>
+            <p>JPG, PNG, PDF supportati</p>
+          </div>
+
+          <div id="preview-box" style="display: none; margin-top: 20px;">
+            <img id="preview-img" style="width: 100%; border-radius: 10px; border: 1px solid var(--border); max-height: 250px; object-fit: cover;">
+            <p style="margin-top: 10px; font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace;" id="file-name">—</p>
+          </div>
+
+          <div id="processing-box" style="display: none; text-align: center; margin-top: 20px;">
+            <div class="spinner"></div>
+            <p>Analisi DDT in corso...</p>
+          </div>
+
+          <button class="btn btn-primary" id="btn-analyze" style="display: none; width: 100%; margin-top: 20px;">🔍 Analizza DDT</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="dot blue"></div>
+          <span>Risultati</span>
+        </div>
+        <div style="padding: 20px;" id="ddt-results">
+          <div class="empty-state">
+            <span class="emoji">👆</span>
+            <p>Carica un DDT per iniziare</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <span id="toast-icon">✅</span>
+  <span id="toast-msg">Operazione completata</span>
+</div>
+
+<script>
+// Supabase config
+const SUPABASE_URL = "https://dxprcptlkjsdvydzkcqf.supabase.co";
+sb_publishable_858qHNCMPskYUAFEBFTkuw_SZ18F...
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// State
+let fornitori = [];
+let prodotti = [];
+let currentDDTResults = null;
+
+// Init
+init();
+
+async function init() {
+  await loadFornitori();
+  await loadProdotti();
+  updateStats();
+  renderListino();
+}
+
+async function loadFornitori() {
+  try {
+    const { data, error } = await supabase.from('fornitori').select('*');
+    if (error) throw error;
+    fornitori = data || [];
+    updateFornitorSelect();
+  } catch(err) {
+    console.error('Errore caricamento fornitori:', err);
+    showToast('error', 'Errore connessione Supabase');
+  }
+}
+
+async function loadProdotti() {
+  try {
+    const { data, error } = await supabase.from('prodotti').select('*');
+    if (error) throw error;
+    prodotti = data || [];
+  } catch(err) {
+    console.error('Errore caricamento prodotti:', err);
+  }
+}
+
+async function addFornitore() {
+  const nome = document.getElementById('form-nome').value;
+  const piva = document.getElementById('form-piva').value;
+  const tel = document.getElementById('form-tel').value;
+  const email = document.getElementById('form-email').value;
+  const agente = document.getElementById('form-agente').value;
+
+  if (!nome) {
+    showToast('error', 'Inserisci il nome fornitore');
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase.from('fornitori').insert([{
+      nome, partita_iva: piva, telefono: tel, email, agente
+    }]).select();
+    
+    if (error) throw error;
+    
+    fornitori.push(data[0]);
+    updateStats();
+    renderListino();
+    updateFornitorSelect();
+    
+    document.getElementById('form-nome').value = '';
+    document.getElementById('form-piva').value = '';
+    document.getElementById('form-tel').value = '';
+    document.getElementById('form-email').value = '';
+    document.getElementById('form-agente').value = '';
+    
+    showToast('success', '✅ Fornitore aggiunto!');
+  } catch(err) {
+    console.error(err);
+    showToast('error', 'Errore: ' + err.message);
+  }
+}
+
+function updateStats() {
+  document.getElementById('stat-fornitori').textContent = fornitori.length;
+  document.getElementById('stat-prodotti').textContent = prodotti.length;
+}
+
+function renderListino() {
+  const container = document.getElementById('listino-container');
+  
+  if (fornitori.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <span class="emoji">📋</span>
+        <p>Nessun fornitore aggiunto.<br>Crea il tuo primo fornitore sopra.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = fornitori.map(f => `
+    <div style="margin-bottom: 24px; padding: 20px; background: var(--surface2); border-radius: 12px; border: 1px solid var(--border);">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+        <div>
+          <h3 style="font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 4px;">${f.nome}</h3>
+          <div style="font-size: 11px; color: var(--muted); display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+            <div>P.IVA: ${f.partita_iva || '—'}</div>
+            <div>Tel: ${f.telefono || '—'}</div>
+            <div>Email: ${f.email || '—'}</div>
+            <div>Agente: ${f.agente || '—'}</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="deleteFornitore(${f.id})">🗑️</button>
+      </div>
+      
+      <div style="margin-top: 12px;">
+        <h4 style="font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px;">Prodotti</h4>
+        <div id="prodotti-${f.id}" style="font-size: 12px; color: var(--muted);">Nessun prodotto</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateFornitorSelect() {
+  const sel = document.getElementById('ddt-fornitore');
+  sel.innerHTML = '<option value="">— Rileva automaticamente —</option>';
+  fornitori.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.nome;
+    sel.appendChild(opt);
+  });
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function deleteFornitore(id) {
+  if (!confirm('Eliminare questo fornitore?')) return;
+  
+  supabase.from('fornitori').delete().eq('id', id).then(() => {
+    fornitori = fornitori.filter(f => f.id !== id);
+    updateStats();
+    renderListino();
+    showToast('success', '✅ Fornitore eliminato');
+  });
+}
+
+// DDT Reader
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+let currentBase64 = null;
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentBase64 = e.target.result.split(',')[1];
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-box').style.display = 'block';
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('btn-analyze').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('btn-analyze').onclick = analyzeDDT;
+
+async function analyzeDDT() {
+  if (!currentBase64) return;
+  
+  document.getElementById('processing-box').style.display = 'block';
+  document.getElementById('ddt-results').innerHTML = '';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: currentBase64 } },
+            {
+              type: 'text',
+              text: `Analizza questo DDT e restituisci SOLO JSON valido senza markdown:
+{
+  "fornitore": "nome",
+  "numero_ddt": "numero",
+  "data": "gg/mm/aaaa",
+  "destinatario": "nome",
+  "totale": 0,
+  "prodotti": [
+    {"codice": "", "descrizione": "", "um": "", "quantita": 0, "prezzo": 0, "iva": 0, "importo": 0}
+  ]
+}`
+            }
+          ]
+        }]
+      })
+    });
+
+    const data = await resp.json();
+    const text = data.content[0].text;
+    const clean = text.replace(/```json|```/g, '').trim();
+    currentDDTResults = JSON.parse(clean);
+
+    document.getElementById('processing-box').style.display = 'none';
+    renderDDTResults(currentDDTResults);
+    showToast('success', `✅ Estratti ${currentDDTResults.prodotti.length} prodotti`);
+  } catch(err) {
+    document.getElementById('processing-box').style.display = 'none';
+    showToast('error', 'Errore: ' + err.message);
+  }
+}
+
+function renderDDTResults(data) {
+  const html = `
+    <div style="margin-bottom: 20px;">
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+        <div><strong>Fornitore:</strong> ${data.fornitore}</div>
+        <div><strong>DDT:</strong> ${data.numero_ddt}</div>
+        <div><strong>Data:</strong> ${data.data}</div>
+        <div><strong>Totale:</strong> €${(data.totale || 0).toFixed(2)}</div>
+      </div>
+
+      <table style="margin-bottom: 20px;">
+        <thead>
+          <tr>
+            <th>Codice</th>
+            <th>Descrizione</th>
+            <th>U.M.</th>
+            <th>Qtà</th>
+            <th style="text-align: right;">Prezzo</th>
+            <th style="text-align: right;">IVA</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(data.prodotti || []).map(p => `
+            <tr>
+              <td><span style="font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted);">${p.codice}</span></td>
+              <td>${p.descrizione}</td>
+              <td><span style="background: var(--surface); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${p.um}</span></td>
+              <td>${p.quantita}</td>
+              <td style="text-align: right; font-family: 'DM Mono', monospace; color: var(--accent);">€${(p.prezzo || 0).toFixed(2)}</td>
+              <td style="text-align: right;">${p.iva || 0}%</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <button class="btn btn-primary" onclick="saveDDTToSupabase()" style="width: 100%;">💾 Salva nel listino</button>
+    </div>
+  `;
+  document.getElementById('ddt-results').innerHTML = html;
+}
+
+async function saveDDTToSupabase() {
+  if (!currentDDTResults) return;
+
+  const fornitoreName = currentDDTResults.fornitore;
+  const fornitore = fornitori.find(f => f.nome.toLowerCase().includes(fornitoreName.toLowerCase()));
+  
+  if (!fornitore) {
+    showToast('error', 'Fornitore non trovato. Crealo prima.');
+    return;
+  }
+
+  try {
+    // Salva DDT log
+    await supabase.from('ddt_log').insert([{
+      fornitore: fornitoreName,
+      numero_ddt: currentDDTResults.numero_ddt,
+      data_ddt: currentDDTResults.data,
+      destinatario: currentDDTResults.destinatario,
+      totale: currentDDTResults.totale,
+      prodotti_count: currentDDTResults.prodotti.length
+    }]);
+
+    // Salva prodotti
+    for (const p of (currentDDTResults.prodotti || [])) {
+      if (!p.codice) continue;
+      
+      const existing = prodotti.find(pr => pr.fornitore_id === fornitore.id && pr.codice === p.codice);
+      
+      if (existing) {
+        // Aggiorna prezzo
+        await supabase.from('prodotti').update({
+          prezzo: p.prezzo,
+          iva: p.iva,
+          ultima_modifica: new Date().toISOString()
+        }).eq('id', existing.id);
+      } else {
+        // Crea nuovo prodotto
+        await supabase.from('prodotti').insert([{
+          fornitore_id: fornitore.id,
+          codice: p.codice,
+          descrizione: p.descrizione,
+          um: p.um,
+          prezzo: p.prezzo,
+          iva: p.iva,
+          ultimo_ddt: currentDDTResults.numero_ddt
+        }]);
+      }
+    }
+
+    await loadProdotti();
+    updateStats();
+    renderListino();
+    document.getElementById('ddt-results').innerHTML = '<div class="empty-state"><span class="emoji">✅</span><p>Salvo completato!</p></div>';
+    showToast('success', '✅ Dati salvati su Supabase!');
+  } catch(err) {
+    console.error(err);
+    showToast('error', 'Errore salvataggio: ' + err.message);
+  }
+}
+
+function showToast(type, msg) {
+  const t = document.getElementById('toast');
+  t.className = `toast ${type}`;
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
